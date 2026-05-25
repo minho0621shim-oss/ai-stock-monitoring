@@ -1,0 +1,25 @@
+# Frontend dependencies and builds
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+# Python backend cache and virtual envs
+backend/__pycache__/
+backend/*.pyc
+backend/.venv/
+backend/venv/
+backend/env/
+backend/stock_master.json
+backend/*.log
+backend/table_dump.txt
+
+# System / IDE files
+.vscode/
+.idea/
+.DS_Store
+.antigravitycli/
+C:\Users\minho\.gemini\antigravity\
