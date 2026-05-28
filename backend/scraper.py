@@ -30,12 +30,33 @@ STOCKS = {
             {"name": "한미약품", "code": "128940"},
             {"name": "SK바이오팜", "code": "326030"}
         ],
-        "AI 피지컬": [
+        "로봇": [
+            {"name": "현대차", "code": "005380"},
+            {"name": "현대모비스", "code": "012330"},
+            {"name": "두산로보틱스", "code": "454910"},
+            {"name": "현대오토에버", "code": "307950"},
+            {"name": "한화에어로스페이스", "code": "012450"}
+        ],
+        "AI 서비스": [
             {"name": "NAVER", "code": "035420"},
             {"name": "카카오", "code": "035720"},
-            {"name": "두산로보틱스", "code": "454910"},
-            {"name": "HD현대일렉트릭", "code": "043200"},
-            {"name": "LS일렉트릭", "code": "010120"}
+            {"name": "삼성SDS", "code": "018260"},
+            {"name": "포스코DX", "code": "022100"},
+            {"name": "KT", "code": "030200"}
+        ],
+        "MLCC": [
+            {"name": "삼성전기", "code": "009150"},
+            {"name": "삼화콘덴서", "code": "001820"},
+            {"name": "코스모신소재", "code": "005070"},
+            {"name": "삼화전자", "code": "011230"},
+            {"name": "대덕전자", "code": "353200"}
+        ],
+        "전력 수급": [
+            {"name": "HD현대일렉트릭", "code": "267260"},
+            {"name": "LS일렉트릭", "code": "010120"},
+            {"name": "한국전력", "code": "015760"},
+            {"name": "효성중공업", "code": "298040"},
+            {"name": "대한전선", "code": "001440"}
         ]
     },
     "KOSDAQ": {
@@ -53,12 +74,33 @@ STOCKS = {
             {"name": "휴젤", "code": "145020"},
             {"name": "에스티팜", "code": "237690"}
         ],
-        "AI 피지컬": [
+        "로봇": [
             {"name": "레인보우로보틱스", "code": "277810"},
+            {"name": "뉴로메카", "code": "348340"},
+            {"name": "에스피지", "code": "058610"},
+            {"name": "로보스타", "code": "090360"},
+            {"name": "로보티즈", "code": "108490"}
+        ],
+        "AI 서비스": [
             {"name": "루닛", "code": "328130"},
             {"name": "셀바스AI", "code": "108860"},
-            {"name": "에스피지", "code": "058610"},
-            {"name": "뉴로메카", "code": "348340"}
+            {"name": "솔트룩스", "code": "304100"},
+            {"name": "마음AI", "code": "377480"},
+            {"name": "코난테크놀로지", "code": "402030"}
+        ],
+        "MLCC": [
+            {"name": "대주전자재료", "code": "078600"},
+            {"name": "아모텍", "code": "052710"},
+            {"name": "아바텍", "code": "149950"},
+            {"name": "상신전자", "code": "263810"},
+            {"name": "아바코", "code": "074430"}
+        ],
+        "전력 수급": [
+            {"name": "제룡전기", "code": "033100"},
+            {"name": "서전기전", "code": "189860"},
+            {"name": "대양전기공업", "code": "108380"},
+            {"name": "서호전기", "code": "065710"},
+            {"name": "세명전기", "code": "017510"}
         ]
     }
 }
@@ -95,16 +137,28 @@ def parse_stock(code):
             pct_change = nums[1] + "%" if len(nums) > 1 else "0%"
         
         is_up = False
+        is_down = False
         ico = no_exday.select_one('.ico')
         if ico:
             classes = ico.get('class', [])
-            if 'up' in classes or 'ico_up' in classes:
+            if any('up' in c for c in classes):
                 is_up = True
-        elif '상승' in text or '우상향' in text or '+' in text:
-            is_up = True
+            elif any('down' in c for c in classes):
+                is_down = True
+        
+        # Fallback to text check if no ico or no clear direction class
+        if not is_up and not is_down:
+            if '상승' in text or '우상향' in text or '+' in text or '상한' in text:
+                is_up = True
+            elif '하락' in text or '우하향' in text or '-' in text or '하한' in text:
+                is_down = True
             
-        trend = "up" if is_up else "down"
-        sign = "+" if trend == "up" else "-"
+        if point_change == "0" or (not is_up and not is_down):
+            trend = "flat"
+            sign = ""
+        else:
+            trend = "up" if is_up else "down"
+            sign = "+" if trend == "up" else "-"
         
         # Parse pct_val as numeric float for calculations (sorting/filtering)
         try:
@@ -112,6 +166,8 @@ def parse_stock(code):
             pct_val = float(clean_pct)
             if trend == "down":
                 pct_val = -pct_val
+            elif trend == "flat":
+                pct_val = 0.0
         except ValueError:
             pct_val = 0.0
             
@@ -136,10 +192,9 @@ def parse_stock(code):
 
 def scrape_stock_details():
     """Scrapes all specified stocks concurrently in a thread pool."""
-    results = {
-        "KOSPI": {"반도체": [], "바이오": [], "AI 피지컬": []},
-        "KOSDAQ": {"반도체": [], "바이오": [], "AI 피지컬": []}
-    }
+    results = {}
+    for market, categories in STOCKS.items():
+        results[market] = {cat: [] for cat in categories}
     
     to_fetch = []
     for market, categories in STOCKS.items():
@@ -158,8 +213,8 @@ def scrape_stock_details():
             logger.error(f"Error fetching stock {name} ({code}): {e}")
             return market, category, {"name": name, "code": code, "price": "N/A", "change": "N/A", "trend": "up", "volume": "N/A", "pct_val": 0.0}
 
-    # Use 10 threads since we have 30 stocks to scrape
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    # Use 20 threads since we have 40 stocks to scrape
+    with ThreadPoolExecutor(max_workers=20) as executor:
         fetched = list(executor.map(fetch_one, to_fetch))
         
     for market, category, res in fetched:
@@ -167,7 +222,7 @@ def scrape_stock_details():
         
     # Mark the highest pct_val stock in each category as "top_surged"
     for market in ["KOSPI", "KOSDAQ"]:
-        for category in ["반도체", "바이오", "AI 피지컬"]:
+        for category in results[market]:
             stocks = results[market][category]
             if stocks:
                 # Find positive surged ones
@@ -181,66 +236,83 @@ def scrape_stock_details():
 def scrape_indices_and_trends():
     data = {
         "market": {
-            "kospi": {"value": "0", "change": "0", "trend": "down"},
-            "kosdaq": {"value": "0", "change": "0", "trend": "down"}
+            "kospi": {"value": "0", "change": "0", "trend": "up"},
+            "kosdaq": {"value": "0", "change": "0", "trend": "up"}
         },
         "insight": "AI Analyst is processing...",
-        "trends": []
+        "trends": {
+            "kospi": [],
+            "kosdaq": []
+        }
     }
     try:
-        url = 'https://finance.naver.com/'
+        url = 'https://finance.naver.com/sise/'
         response = requests.get(url, headers=HEADERS)
         response.raise_for_status()
+        response.encoding = 'euc-kr'
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # KOSPI
-        kospi_area = soup.select_one('.kospi_area')
-        if kospi_area:
-            val = kospi_area.select_one('.num').text.strip()
-            change_pt = kospi_area.select_one('.num2').text.strip()
-            change_pct = kospi_area.select_one('.num3').text.strip() if kospi_area.select_one('.num3') else ""
+        # 1. KOSPI Index
+        kospi_now = soup.find(id="KOSPI_now")
+        kospi_change = soup.find(id="KOSPI_change")
+        if kospi_now and kospi_change:
+            val = kospi_now.text.strip()
+            change_text = kospi_change.text.strip()
+            parts = change_text.split()
+            pt = parts[0] if len(parts) > 0 else "0"
+            pct = parts[1] if len(parts) > 1 else ""
+            pct_clean = pct.replace("상승", "").replace("하락", "").replace("보합", "").strip()
+            change_str = f"{pt} ({pct_clean})"
             
-            clean_pt = change_pt.replace('상승', '').replace('하락', '').replace('보합', '').strip()
-            change_str = f"{clean_pt} ({change_pct})"
-            
-            if '+' in change_pct or '상승' in change_pt:
-                trend = "up"
-            elif '-' in change_pct or '하락' in change_pt:
+            trend = "up"
+            if "하락" in change_text or "-" in change_text:
                 trend = "down"
-            else:
-                trend = "up"
             data["market"]["kospi"] = {"value": val, "change": change_str, "trend": trend}
 
-        # KOSDAQ
-        kosdaq_area = soup.select_one('.kosdaq_area')
-        if kosdaq_area:
-            val = kosdaq_area.select_one('.num').text.strip()
-            change_pt = kosdaq_area.select_one('.num2').text.strip()
-            change_pct = kosdaq_area.select_one('.num3').text.strip() if kosdaq_area.select_one('.num3') else ""
+        # 2. KOSDAQ Index
+        kosdaq_now = soup.find(id="KOSDAQ_now")
+        kosdaq_change = soup.find(id="KOSDAQ_change")
+        if kosdaq_now and kosdaq_change:
+            val = kosdaq_now.text.strip()
+            change_text = kosdaq_change.text.strip()
+            parts = change_text.split()
+            pt = parts[0] if len(parts) > 0 else "0"
+            pct = parts[1] if len(parts) > 1 else ""
+            pct_clean = pct.replace("상승", "").replace("하락", "").replace("보합", "").strip()
+            change_str = f"{pt} ({pct_clean})"
             
-            clean_pt = change_pt.replace('상승', '').replace('하락', '').replace('보합', '').strip()
-            change_str = f"{clean_pt} ({change_pct})"
-            
-            if '+' in change_pct or '상승' in change_pt:
-                trend = "up"
-            elif '-' in change_pct or '하락' in change_pt:
+            trend = "up"
+            if "하락" in change_text or "-" in change_text:
                 trend = "down"
-            else:
-                trend = "up"
             data["market"]["kosdaq"] = {"value": val, "change": change_str, "trend": trend}
 
-        # Trends
-        is_up = data["market"]["kospi"]["trend"] == "up"
-        data["trends"] = [
-            {"group": "외국인", "amount": "+1205억 원" if is_up else "-852억 원", "trend": "up" if is_up else "down"},
-            {"group": "기관", "amount": "+451억 원" if is_up else "-1103억 원", "trend": "up" if is_up else "down"},
-            {"group": "개인", "amount": "-1507억 원" if is_up else "+1954억 원", "trend": "down" if is_up else "up"}
-        ]
+        # 3. Trends
+        def extract_trend_list(ul_id):
+            trends = []
+            ul = soup.find(id=ul_id)
+            if ul:
+                items = ul.find_all('li')
+                if len(items) >= 4:
+                    for idx, group_name in [(1, "개인"), (2, "외국인"), (3, "기관")]:
+                        text = items[idx].text.strip()
+                        amount = text.replace(group_name, "").strip()
+                        trend = "up" if "+" in amount else "down"
+                        trends.append({
+                            "group": group_name,
+                            "amount": amount,
+                            "trend": trend
+                        })
+            return trends
+
+        data["trends"]["kospi"] = extract_trend_list("tab_sel1_deal_trend")
+        data["trends"]["kosdaq"] = extract_trend_list("tab_sel2_deal_trend")
         
+        is_up = data["market"]["kospi"]["trend"] == "up"
         if is_up:
-            data["insight"] = "코스피가 상승 흐름을 보이고 있습니다. 외국인과 기관의 쌍끌이 매수세가 지수 상승을 견인하고 있으며, 개인은 차익 실현에 나서는 모습입니다. 단기 저항선 돌파 여부를 주목하세요."
+            data["insight"] = "코스피가 상승 흐름을 보이고 있습니다. 외국인과 기관의 매수세가 지수 상승을 견인하고 있으며, 개인은 차익 실현에 나서는 모습입니다. 단기 저항선 돌파 여부를 주목하세요."
         else:
             data["insight"] = "시장이 조정을 받으며 하락세를 보이고 있습니다. 외국인과 기관의 매도 물량이 출회되고 있으며, 개인이 저가 매수에 나서며 하단을 지지하고 있습니다. 변동성에 유의하세요."
+            
     except Exception as e:
         logger.error(f"Error scraping indices: {e}")
     return data

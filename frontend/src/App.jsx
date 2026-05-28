@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './index.css';
-import { createChart, CandlestickSeries, HistogramSeries } from 'lightweight-charts';
+import { createChart, CandlestickSeries, HistogramSeries, LineSeries } from 'lightweight-charts';
 
 const getChartAnalysis = (stock, timeframe) => {
   const isUp = stock.trend === 'up';
@@ -94,6 +94,21 @@ const getTechnicalIndicators = (stock, timeframe) => {
   const bband = isUp ? '상한선 돌파 시도' : '하한선 지지력 테스트';
   const ma = isUp ? '이평선 정배열 안착' : '이평선 역배열 지속';
 
+  let stochK = 50;
+  let stochD = 50;
+  if (isUp) {
+    stochK = 70 + (codeVal % 18);
+    stochD = stochK - 3 - (codeVal % 3);
+  } else {
+    stochK = 10 + (codeVal % 18);
+    stochD = stochK + 2 + (codeVal % 3);
+  }
+  const stochSignal = stochK >= 80 ? '과열' : stochK <= 20 ? '침체' : '중립';
+  const stochVal = `%K: ${stochK}, %D: ${stochD} (${stochSignal})`;
+
+  const obvBase = 50000 + (codeVal % 100) * 1000;
+  const obvVal = isUp ? `${(obvBase * 1.5).toLocaleString()}K (상승 흐름)` : `${(obvBase * 0.8).toLocaleString()}K (하향 횡보)`;
+
   return {
     score,
     consensus,
@@ -102,8 +117,26 @@ const getTechnicalIndicators = (stock, timeframe) => {
     rsi,
     macd,
     bband,
-    ma
+    ma,
+    stoch: stochVal,
+    obv: obvVal
   };
+};
+
+const calculateMA = (data, period) => {
+  const maData = [];
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) continue;
+    let sum = 0;
+    for (let j = 0; j < period; j++) {
+      sum += data[i - j].close;
+    }
+    maData.push({
+      time: data[i].time,
+      value: sum / period,
+    });
+  }
+  return maData;
 };
 
 const TradingViewWidget = ({ symbol, timeframe }) => {
@@ -147,6 +180,27 @@ const TradingViewWidget = ({ symbol, timeframe }) => {
       borderDownColor: '#3b82f6',
       wickUpColor: '#ef4444',
       wickDownColor: '#3b82f6',
+    });
+
+    // 5-day MA (Yellow)
+    const ma5Series = chart.addSeries(LineSeries, {
+      color: '#eab308',
+      lineWidth: 1.5,
+      priceLineVisible: false,
+    });
+
+    // 20-day MA (Pink)
+    const ma20Series = chart.addSeries(LineSeries, {
+      color: '#ec4899',
+      lineWidth: 2,
+      priceLineVisible: false,
+    });
+
+    // 60-day MA (Cyan)
+    const ma60Series = chart.addSeries(LineSeries, {
+      color: '#06b6d4',
+      lineWidth: 2,
+      priceLineVisible: false,
     });
 
     // Volume series (overlay on bottom 20%)
@@ -193,8 +247,16 @@ const TradingViewWidget = ({ symbol, timeframe }) => {
           color: item.close >= item.open ? 'rgba(239, 68, 68, 0.4)' : 'rgba(59, 130, 246, 0.4)',
         }));
 
+        // Calculate moving averages
+        const ma5Data = calculateMA(sortedData, 5);
+        const ma20Data = calculateMA(sortedData, 20);
+        const ma60Data = calculateMA(sortedData, 60);
+
         candlestickSeries.setData(candleData);
         volumeSeries.setData(volumeData);
+        ma5Series.setData(ma5Data);
+        ma20Series.setData(ma20Data);
+        ma60Series.setData(ma60Data);
 
         chart.timeScale().fitContent();
         setLoading(false);
@@ -225,6 +287,36 @@ const TradingViewWidget = ({ symbol, timeframe }) => {
 
   return (
     <div className="tradingview-widget-container" style={{ width: '100%', height: '100%', minHeight: '480px', position: 'relative', background: '#0f172a', borderRadius: '8px', overflow: 'hidden' }}>
+      {/* Chart Legend */}
+      <div style={{
+        position: 'absolute',
+        top: '12px',
+        left: '12px',
+        zIndex: 10,
+        background: 'rgba(15, 23, 42, 0.75)',
+        backdropFilter: 'blur(4px)',
+        border: '1px solid var(--border-color)',
+        borderRadius: '6px',
+        padding: '0.4rem 0.6rem',
+        fontSize: '0.75rem',
+        display: 'flex',
+        gap: '0.8rem',
+        pointerEvents: 'none'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          <span style={{ display: 'inline-block', width: '10px', height: '3px', background: '#eab308' }} />
+          <span style={{ color: '#eab308', fontWeight: '600' }}>5일선</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          <span style={{ display: 'inline-block', width: '10px', height: '3px', background: '#ec4899' }} />
+          <span style={{ color: '#ec4899', fontWeight: '600' }}>20일선</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          <span style={{ display: 'inline-block', width: '10px', height: '3px', background: '#06b6d4' }} />
+          <span style={{ color: '#06b6d4', fontWeight: '600' }}>60일선</span>
+        </div>
+      </div>
+
       {loading && (
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'rgba(15, 23, 42, 0.8)', color: '#94a3b8', zIndex: 10, fontSize: '0.95rem' }}>
           차트 데이터를 불러오는 중...
@@ -247,7 +339,30 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [stockNews, setStockNews] = useState([]);
+  const [loadingNews, setLoadingNews] = useState(false);
+  const [hoveredIndicator, setHoveredIndicator] = useState(null);
   const suggestionRef = useRef(null);
+
+  // Fetch stock-specific news
+  useEffect(() => {
+    if (!selectedStock?.code) {
+      setStockNews([]);
+      return;
+    }
+    setLoadingNews(true);
+    fetch(`http://localhost:8000/api/stocks/${selectedStock.code}/news`)
+      .then(res => res.json())
+      .then(news => {
+        setStockNews(news || []);
+        setLoadingNews(false);
+      })
+      .catch(err => {
+        console.error("Error fetching stock news:", err);
+        setStockNews([]);
+        setLoadingNews(false);
+      });
+  }, [selectedStock?.code]);
 
   // Fetch suggestions as the user types
   useEffect(() => {
@@ -305,7 +420,8 @@ function App() {
               price: detail.price,
               change: detail.change,
               trend: detail.trend,
-              volume: detail.volume
+              volume: detail.volume,
+              investor_trend: detail.investor_trend
             };
           }
           return prev;
@@ -331,7 +447,8 @@ function App() {
               price: detail.price,
               change: detail.change,
               trend: detail.trend,
-              volume: detail.volume
+              volume: detail.volume,
+              investor_trend: detail.investor_trend
             };
           }
           return prev;
@@ -368,11 +485,18 @@ function App() {
         "kosdaq": {"value": "865.11", "change": "3.67 (-0.42%)", "trend": "down"}
     },
     "insight": "코스피가 2760선에서 강한 저항을 받고 있습니다. 외국인 투자자들이 기술주를 매집하고 있어 돌파 가능성이 있습니다. 전반적인 뉴스 심리는 약간의 긍정(Bullish) 상태입니다.",
-    "trends": [
-        {"group": "외국인", "amount": "+1502억 원", "trend": "up"},
-        {"group": "기관", "amount": "-455억 원", "trend": "down"},
-        {"group": "개인", "amount": "-1047억 원", "trend": "down"}
-    ],
+    "trends": {
+      "kospi": [
+        {"group": "개인", "amount": "-1,047억", "trend": "down"},
+        {"group": "외국인", "amount": "+1,502억", "trend": "up"},
+        {"group": "기관", "amount": "-455억", "trend": "down"}
+      ],
+      "kosdaq": [
+        {"group": "개인", "amount": "+924억", "trend": "up"},
+        {"group": "외국인", "amount": "-512억", "trend": "down"},
+        {"group": "기관", "amount": "-412억", "trend": "down"}
+      ]
+    },
     "news": [
         {"title": "삼성전자, 차세대 AI 반도체 공개", "summary": "클릭하여 실시간 뉴스를 확인하세요.", "link": "https://finance.naver.com"},
         {"title": "한국은행, 기준금리 동결 결정", "summary": "클릭하여 실시간 뉴스를 확인하세요.", "link": "https://finance.naver.com"},
@@ -401,12 +525,33 @@ function App() {
           {"name": "한미약품", "code": "128940", "price": "315,000", "change": "5,000 (-1.56%)", "trend": "down", "volume": "45,210", "top_surged": false},
           {"name": "SK바이오팜", "code": "326030", "price": "91,200", "change": "100 (-0.11%)", "trend": "down", "volume": "125,410", "top_surged": false}
         ],
-        "AI 피지컬": [
+        "로봇": [
+          {"name": "현대차", "code": "005380", "price": "248,000", "change": "3,500 (+1.43%)", "trend": "up", "volume": "1,542,100", "top_surged": false},
+          {"name": "현대모비스", "code": "012330", "price": "265,000", "change": "5,000 (+1.92%)", "trend": "up", "volume": "342,500", "top_surged": false},
+          {"name": "두산로보틱스", "code": "454910", "price": "79,500", "change": "4,200 (+5.58%)", "trend": "up", "volume": "542,100", "top_surged": true},
+          {"name": "현대오토에버", "code": "307950", "price": "185,000", "change": "2,000 (+1.09%)", "trend": "up", "volume": "85,400", "top_surged": false},
+          {"name": "한화에어로스페이스", "code": "012450", "price": "352,000", "change": "8,000 (+2.33%)", "trend": "up", "volume": "245,100", "top_surged": false}
+        ],
+        "AI 서비스": [
           {"name": "NAVER", "code": "035420", "price": "185,000", "change": "3,000 (-1.60%)", "trend": "down", "volume": "895,120", "top_surged": false},
           {"name": "카카오", "code": "035720", "price": "48,200", "change": "200 (+0.42%)", "trend": "up", "volume": "1,120,450", "top_surged": false},
-          {"name": "두산로보틱스", "code": "454910", "price": "79,500", "change": "4,200 (+5.58%)", "trend": "up", "volume": "542,100", "top_surged": true},
-          {"name": "HD현대일렉트릭", "code": "043200", "price": "242,000", "change": "3,000 (+1.26%)", "trend": "up", "volume": "142,300", "top_surged": false},
-          {"name": "LS일렉트릭", "code": "010120", "price": "154,200", "change": "2,100 (-1.34%)", "trend": "down", "volume": "210,400", "top_surged": false}
+          {"name": "삼성SDS", "code": "018260", "price": "152,000", "change": "1,500 (-0.98%)", "trend": "down", "volume": "85,400", "top_surged": false},
+          {"name": "포스코DX", "code": "022100", "price": "12,500", "change": "200 (+1.63%)", "trend": "up", "volume": "342,100", "top_surged": true},
+          {"name": "KT", "code": "030200", "price": "38,500", "change": "150 (+0.39%)", "trend": "up", "volume": "542,300", "top_surged": false}
+        ],
+        "MLCC": [
+          {"name": "삼성전기", "code": "009150", "price": "148,200", "change": "2,300 (+1.58%)", "trend": "up", "volume": "245,612", "top_surged": false},
+          {"name": "삼화콘덴서", "code": "001820", "price": "38,500", "change": "450 (+1.18%)", "trend": "up", "volume": "85,612", "top_surged": false},
+          {"name": "코스모신소재", "code": "005070", "price": "165,300", "change": "5,400 (+3.38%)", "trend": "up", "volume": "142,300", "top_surged": true},
+          {"name": "삼화전자", "code": "011230", "price": "3,420", "change": "30 (-0.87%)", "trend": "down", "volume": "110,420", "top_surged": false},
+          {"name": "대덕전자", "code": "353200", "price": "24,500", "change": "150 (-0.61%)", "trend": "down", "volume": "152,431", "top_surged": false}
+        ],
+        "전력 수급": [
+          {"name": "HD현대일렉트릭", "code": "267260", "price": "385,000", "change": "12,500 (+3.35%)", "trend": "up", "volume": "542,100", "top_surged": true},
+          {"name": "LS일렉트릭", "code": "010120", "price": "154,200", "change": "2,100 (+1.38%)", "trend": "up", "volume": "210,400", "top_surged": false},
+          {"name": "한국전력", "code": "015760", "price": "22,500", "change": "350 (+1.58%)", "trend": "up", "volume": "3,542,100", "top_surged": false},
+          {"name": "효성중공업", "code": "298040", "price": "310,000", "change": "8,000 (+2.65%)", "trend": "up", "volume": "412,500", "top_surged": false},
+          {"name": "대한전선", "code": "001440", "price": "15,800", "change": "200 (+1.28%)", "trend": "up", "volume": "985,400", "top_surged": false}
         ]
       },
       "KOSDAQ": {
@@ -424,12 +569,33 @@ function App() {
           {"name": "휴젤", "code": "145020", "price": "210,000", "change": "3,000 (-1.41%)", "trend": "down", "volume": "25,120", "top_surged": false},
           {"name": "에스티팜", "code": "237690", "price": "89,500", "change": "500 (+0.56%)", "trend": "up", "volume": "104,200", "top_surged": false}
         ],
-        "AI 피지컬": [
+        "로봇": [
           {"name": "레인보우로보틱스", "code": "277810", "price": "165,000", "change": "2,000 (-1.20%)", "trend": "down", "volume": "185,420", "top_surged": false},
+          {"name": "뉴로메카", "code": "348340", "price": "34,200", "change": "800 (+2.39%)", "trend": "up", "volume": "98,120", "top_surged": false},
+          {"name": "에스피지", "code": "058610", "price": "31,400", "change": "200 (-0.63%)", "trend": "down", "volume": "112,400", "top_surged": false},
+          {"name": "로보스타", "code": "090360", "price": "15,200", "change": "850 (+5.92%)", "trend": "up", "volume": "245,100", "top_surged": true},
+          {"name": "로보티즈", "code": "108490", "price": "42,100", "change": "500 (+1.20%)", "trend": "up", "volume": "52,300", "top_surged": false}
+        ],
+        "AI 서비스": [
           {"name": "루닛", "code": "328130", "price": "62,300", "change": "4,100 (+7.04%)", "trend": "up", "volume": "342,100", "top_surged": true},
           {"name": "셀바스AI", "code": "108860", "price": "19,800", "change": "300 (+1.54%)", "trend": "up", "volume": "210,400", "top_surged": false},
-          {"name": "에스피지", "code": "058610", "price": "31,400", "change": "200 (-0.63%)", "trend": "down", "volume": "112,400", "top_surged": false},
-          {"name": "뉴로메카", "code": "348340", "price": "34,200", "change": "800 (+2.39%)", "trend": "up", "volume": "98,120", "top_surged": false}
+          {"name": "솔트룩스", "code": "304100", "price": "5,420", "change": "120 (+2.26%)", "trend": "up", "volume": "142,500", "top_surged": false},
+          {"name": "마음AI", "code": "377480", "price": "18,500", "change": "200 (-1.07%)", "trend": "down", "volume": "85,200", "top_surged": false},
+          {"name": "코난테크놀로지", "code": "402030", "price": "8,120", "change": "80 (+0.99%)", "trend": "up", "volume": "32,100", "top_surged": false}
+        ],
+        "MLCC": [
+          {"name": "대주전자재료", "code": "078600", "price": "114,200", "change": "3,400 (+3.07%)", "trend": "up", "volume": "189,450", "top_surged": true},
+          {"name": "아모텍", "code": "052710", "price": "7,820", "change": "120 (-1.51%)", "trend": "down", "volume": "25,120", "top_surged": false},
+          {"name": "아바텍", "code": "149950", "price": "12,100", "change": "100 (+0.83%)", "trend": "up", "volume": "14,200", "top_surged": false},
+          {"name": "상신전자", "code": "263810", "price": "3,410", "change": "20 (-0.58%)", "trend": "down", "volume": "112,400", "top_surged": false},
+          {"name": "아바코", "code": "074430", "price": "11,800", "change": "300 (+2.61%)", "trend": "up", "volume": "98,120", "top_surged": false}
+        ],
+        "전력 수급": [
+          {"name": "제룡전기", "code": "033100", "price": "42,500", "change": "2,100 (+5.20%)", "trend": "up", "volume": "342,500", "top_surged": true},
+          {"name": "서전기전", "code": "189860", "price": "8,420", "change": "120 (+1.45%)", "trend": "up", "volume": "85,420", "top_surged": false},
+          {"name": "대양전기공업", "code": "108380", "price": "5,230", "change": "80 (-1.51%)", "trend": "down", "volume": "42,100", "top_surged": false},
+          {"name": "서호전기", "code": "065710", "price": "12,100", "change": "350 (+2.98%)", "trend": "up", "volume": "98,200", "top_surged": false},
+          {"name": "세명전기", "code": "017510", "price": "6,500", "change": "50 (-0.76%)", "trend": "down", "volume": "25,100", "top_surged": false}
         ]
       }
     }
@@ -447,7 +613,7 @@ function App() {
     };
 
     fetchData(); // Initial fetch
-    const intervalId = setInterval(fetchData, 10000); // Poll every 10s
+    const intervalId = setInterval(fetchData, 60000); // Poll every 60s (1m)
 
     return () => clearInterval(intervalId);
   }, []);
@@ -474,25 +640,40 @@ function App() {
               <h2 className="card-title">시장 지수</h2>
               <div style={{ display: 'flex', gap: '2rem' }}>
                 <div>
-                  <h3 style={{ fontSize: '1.5rem' }}>KOSPI <span className={`trend-${data.market.kospi.trend}`} style={{ fontSize: '1rem', marginLeft: '0.5rem' }}>{data.market.kospi.trend === 'up' ? '▲' : '▼'} {data.market.kospi.change}</span></h3>
-                  <p style={{ fontSize: '2.5rem', fontWeight: 'bold', color: `var(--accent-${data.market.kospi.trend === 'up' ? 'red' : 'blue'})` }}>{data.market.kospi.value}</p>
+                  <h3 style={{ fontSize: '1.5rem' }}>KOSPI <span className={`trend-${data.market.kospi.trend}`} style={{ fontSize: '1rem', marginLeft: '0.5rem' }}>{data.market.kospi.trend === 'up' ? '▲' : (data.market.kospi.trend === 'down' ? '▼' : '')} {data.market.kospi.change}</span></h3>
+                  <p style={{ fontSize: '2.5rem', fontWeight: 'bold', color: data.market.kospi.trend === 'up' ? 'var(--accent-red)' : (data.market.kospi.trend === 'down' ? 'var(--accent-blue)' : 'var(--text-muted)') }}>{data.market.kospi.value}</p>
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '1.5rem' }}>KOSDAQ <span className={`trend-${data.market.kosdaq.trend}`} style={{ fontSize: '1rem', marginLeft: '0.5rem' }}>{data.market.kosdaq.trend === 'up' ? '▲' : '▼'} {data.market.kosdaq.change}</span></h3>
-                  <p style={{ fontSize: '2.5rem', fontWeight: 'bold', color: `var(--accent-${data.market.kosdaq.trend === 'up' ? 'red' : 'blue'})` }}>{data.market.kosdaq.value}</p>
+                  <h3 style={{ fontSize: '1.5rem' }}>KOSDAQ <span className={`trend-${data.market.kosdaq.trend}`} style={{ fontSize: '1rem', marginLeft: '0.5rem' }}>{data.market.kosdaq.trend === 'up' ? '▲' : (data.market.kosdaq.trend === 'down' ? '▼' : '')} {data.market.kosdaq.change}</span></h3>
+                  <p style={{ fontSize: '2.5rem', fontWeight: 'bold', color: data.market.kosdaq.trend === 'up' ? 'var(--accent-red)' : (data.market.kosdaq.trend === 'down' ? 'var(--accent-blue)' : 'var(--text-muted)') }}>{data.market.kosdaq.value}</p>
                 </div>
               </div>
             </div>
             
-            <div style={{ minWidth: '280px', flex: 1 }}>
+            <div style={{ minWidth: '320px', flex: 1.5 }}>
               <h2 className="card-title">투자자별 수급 동향</h2>
-              <ul style={{ listStyle: 'none', lineHeight: '2.2', fontSize: '0.95rem' }}>
-                {(data.trends || []).map((t, i) => (
-                  <li key={i} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: i !== data.trends.length - 1 ? '1px dashed var(--border-color)' : 'none', paddingBottom: '0.3rem', marginBottom: '0.3rem' }}>
-                    <span>{t.group}</span> <span className={`trend-${t.trend}`} style={{fontWeight: '600'}}>{t.amount}</span>
-                  </li>
-                ))}
-              </ul>
+              <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: '140px' }}>
+                  <h4 style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.2rem' }}>코스피</h4>
+                  <ul style={{ listStyle: 'none', lineHeight: '2', fontSize: '0.9rem' }}>
+                    {(data.trends?.kospi || []).map((t, i) => (
+                      <li key={i} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: i !== (data.trends.kospi.length - 1) ? '1px dashed rgba(255,255,255,0.03)' : 'none', paddingBottom: '0.2rem', marginBottom: '0.2rem' }}>
+                        <span>{t.group}</span> <span className={`trend-${t.trend}`} style={{fontWeight: '600'}}>{t.amount}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div style={{ flex: 1, minWidth: '140px' }}>
+                  <h4 style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.2rem' }}>코스닥</h4>
+                  <ul style={{ listStyle: 'none', lineHeight: '2', fontSize: '0.9rem' }}>
+                    {(data.trends?.kosdaq || []).map((t, i) => (
+                      <li key={i} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: i !== (data.trends.kosdaq.length - 1) ? '1px dashed rgba(255,255,255,0.03)' : 'none', paddingBottom: '0.2rem', marginBottom: '0.2rem' }}>
+                        <span>{t.group}</span> <span className={`trend-${t.trend}`} style={{fontWeight: '600'}}>{t.amount}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
           
@@ -597,7 +778,7 @@ function App() {
               <div>
                 <h3 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.3rem', color: 'var(--text-main)', marginBottom: '0.8rem', fontSize: '1.1rem' }}>KOSPI 주요 종목</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
-                  {['반도체', '바이오', 'AI 피지컬'].map(category => (
+                  {['반도체', '바이오', '로봇', 'AI 서비스', 'MLCC', '전력 수급'].map(category => (
                     <div key={category} style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                       <h4 style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.6rem', borderBottom: '1px dashed rgba(255,255,255,0.05)', paddingBottom: '0.2rem' }}>{category}</h4>
                       <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
@@ -617,7 +798,7 @@ function App() {
                             <div style={{ textAlign: 'right' }}>
                               <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>{s.price}</span>
                               <span className={`trend-${s.trend}`} style={{ fontSize: '0.75rem', marginLeft: '0.4rem', fontWeight: '500', display: 'block' }}>
-                                {s.trend === 'up' ? '▲' : '▼'} {s.change}
+                                {s.trend === 'up' ? '▲' : (s.trend === 'down' ? '▼' : '')} {s.change}
                               </span>
                             </div>
                           </li>
@@ -632,7 +813,7 @@ function App() {
               <div>
                 <h3 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.3rem', color: 'var(--text-main)', marginBottom: '0.8rem', fontSize: '1.1rem' }}>KOSDAQ 주요 종목</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
-                  {['반도체', '바이오', 'AI 피지컬'].map(category => (
+                  {['반도체', '바이오', '로봇', 'AI 서비스', 'MLCC', '전력 수급'].map(category => (
                     <div key={category} style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                       <h4 style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.6rem', borderBottom: '1px dashed rgba(255,255,255,0.05)', paddingBottom: '0.2rem' }}>{category}</h4>
                       <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
@@ -652,7 +833,7 @@ function App() {
                             <div style={{ textAlign: 'right' }}>
                               <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>{s.price}</span>
                               <span className={`trend-${s.trend}`} style={{ fontSize: '0.75rem', marginLeft: '0.4rem', fontWeight: '500', display: 'block' }}>
-                                {s.trend === 'up' ? '▲' : '▼'} {s.change}
+                                {s.trend === 'up' ? '▲' : (s.trend === 'down' ? '▼' : '')} {s.change}
                               </span>
                             </div>
                           </li>
@@ -746,6 +927,73 @@ function App() {
                   <div className="chart-wrapper">
                     <TradingViewWidget symbol={selectedStock.code} timeframe={chartTimeframe} />
                   </div>
+
+                  <div className="stock-news-section" style={{ marginTop: '0.5rem' }}>
+                    <h3 style={{ fontSize: '0.95rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      📰 종목 관련 주요 뉴스 (인기/최신)
+                    </h3>
+                    {loadingNews ? (
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>뉴스를 불러오는 중...</p>
+                    ) : stockNews.length > 0 ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.8rem' }}>
+                        {stockNews.map((news, idx) => (
+                          <a
+                            key={idx}
+                            href={news.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              textDecoration: 'none',
+                              color: 'inherit',
+                              background: 'rgba(255, 255, 255, 0.02)',
+                              border: '1px solid var(--border-color)',
+                              borderRadius: '8px',
+                              padding: '0.8rem',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.4rem',
+                              transition: 'all 0.2s ease',
+                              cursor: 'pointer'
+                            }}
+                            onMouseOver={(e) => {
+                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                              e.currentTarget.style.borderColor = 'var(--accent-blue)';
+                            }}
+                            onMouseOut={(e) => {
+                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+                              e.currentTarget.style.borderColor = 'var(--border-color)';
+                            }}
+                          >
+                            <h4
+                              style={{
+                                fontSize: '0.85rem',
+                                fontWeight: '500',
+                                color: 'var(--text-main)',
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                height: '2.4rem',
+                                lineHeight: '1.2',
+                                transition: 'color 0.2s ease'
+                              }}
+                            >
+                              {news.title}
+                            </h4>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 'auto' }}>
+                              <span style={{ fontWeight: news.is_popular ? 'bold' : 'normal', color: news.is_popular ? 'var(--accent-red)' : 'var(--text-muted)' }}>
+                                {news.office}
+                              </span>
+                              <span>{news.date}</span>
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>등록된 관련 뉴스가 없습니다.</p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Right Panel: Technical Details & AI Analysis */}
@@ -754,7 +1002,7 @@ function App() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                       <span className="info-price">{selectedStock.price}원</span>
                       <span className={`trend-${selectedStock.trend}`} style={{ fontWeight: '600', fontSize: '1.1rem' }}>
-                        {selectedStock.trend === 'up' ? '▲' : '▼'} {selectedStock.change}
+                        {selectedStock.trend === 'up' ? '▲' : (selectedStock.trend === 'down' ? '▼' : '')} {selectedStock.change}
                       </span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.5rem' }}>
@@ -762,6 +1010,29 @@ function App() {
                       <span>종목코드: {selectedStock.code}</span>
                     </div>
                   </div>
+
+                  {/* Investor Flow Card (NEW) */}
+                  {selectedStock.investor_trend && (
+                    <div className="analysis-card" style={{ padding: '0.8rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                      <h3 style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>당일 투자자별 매매동향</h3>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.4rem' }}>
+                        <span style={{ flex: 1, fontWeight: '500' }}>투자자</span>
+                        <span style={{ width: '90px', textAlign: 'right', fontWeight: '500' }}>순매매량</span>
+                        <span style={{ width: '95px', textAlign: 'right', fontWeight: '500' }}>순매매금액(추정)</span>
+                      </div>
+                      {[
+                        { label: '개인', data: selectedStock.investor_trend.individual },
+                        { label: '외국인', data: selectedStock.investor_trend.foreigner },
+                        { label: '기관', data: selectedStock.investor_trend.organ }
+                      ].map((item, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', paddingBottom: idx !== 2 ? '0.3rem' : '0', borderBottom: idx !== 2 ? '1px dashed rgba(255,255,255,0.02)' : 'none' }}>
+                          <span style={{ flex: 1, fontWeight: '500', color: 'var(--text-main)' }}>{item.label}</span>
+                          <span className={`trend-${item.data.trend}`} style={{ width: '90px', textAlign: 'right', fontWeight: '600' }}>{item.data.volume}</span>
+                          <span className={`trend-${item.data.trend}`} style={{ width: '95px', textAlign: 'right', fontWeight: '600' }}>{item.data.amount}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="analysis-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
@@ -796,7 +1067,15 @@ function App() {
                       </thead>
                       <tbody>
                         <tr>
-                          <td>RSI (14)</td>
+                          <td>
+                            <span 
+                              className="tooltip-indicator"
+                              onMouseEnter={() => setHoveredIndicator('RSI')}
+                              onMouseLeave={() => setHoveredIndicator(null)}
+                            >
+                              RSI (14)
+                            </span>
+                          </td>
                           <td>
                             <span style={{ fontWeight: '600', color: indicators.rsi >= 70 ? 'var(--accent-red)' : indicators.rsi <= 30 ? 'var(--accent-blue)' : 'var(--text-main)' }}>
                               {indicators.rsi}
@@ -807,19 +1086,107 @@ function App() {
                           </td>
                         </tr>
                         <tr>
-                          <td>MACD</td>
+                          <td>
+                            <span 
+                              className="tooltip-indicator"
+                              onMouseEnter={() => setHoveredIndicator('MACD')}
+                              onMouseLeave={() => setHoveredIndicator(null)}
+                            >
+                              MACD
+                            </span>
+                          </td>
                           <td>{indicators.macd}</td>
                         </tr>
                         <tr>
-                          <td>볼린저 밴드</td>
+                          <td>
+                            <span 
+                              className="tooltip-indicator"
+                              onMouseEnter={() => setHoveredIndicator('BBAND')}
+                              onMouseLeave={() => setHoveredIndicator(null)}
+                            >
+                              볼린저 밴드
+                            </span>
+                          </td>
                           <td>{indicators.bband}</td>
                         </tr>
                         <tr>
-                          <td>이동평균선</td>
+                          <td>
+                            <span 
+                              className="tooltip-indicator"
+                              onMouseEnter={() => setHoveredIndicator('MA')}
+                              onMouseLeave={() => setHoveredIndicator(null)}
+                            >
+                              이동평균선
+                            </span>
+                          </td>
                           <td>{indicators.ma}</td>
+                        </tr>
+                        <tr>
+                          <td>
+                            <span 
+                              className="tooltip-indicator"
+                              onMouseEnter={() => setHoveredIndicator('STOCH')}
+                              onMouseLeave={() => setHoveredIndicator(null)}
+                            >
+                              스토캐스틱
+                            </span>
+                          </td>
+                          <td>{indicators.stoch}</td>
+                        </tr>
+                        <tr>
+                          <td>
+                            <span 
+                              className="tooltip-indicator"
+                              onMouseEnter={() => setHoveredIndicator('OBV')}
+                              onMouseLeave={() => setHoveredIndicator(null)}
+                            >
+                              OBV
+                            </span>
+                          </td>
+                          <td>{indicators.obv}</td>
                         </tr>
                       </tbody>
                     </table>
+
+                    {/* Dynamic Indicator Explanation Box */}
+                    <div style={{
+                      marginTop: '0.8rem',
+                      padding: '0.6rem 0.8rem',
+                      borderRadius: '6px',
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      border: '1px solid var(--border-color)',
+                      fontSize: '0.75rem',
+                      color: hoveredIndicator ? 'var(--text-main)' : 'var(--text-muted)',
+                      lineHeight: '1.4',
+                      minHeight: '4.5rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      transition: 'all 0.15s ease-in-out'
+                    }}>
+                      <p style={{ margin: 0 }}>
+                        {hoveredIndicator ? (
+                          <>
+                            <strong style={{ color: 'var(--accent-blue)' }}>💡 {
+                              hoveredIndicator === 'RSI' ? "RSI (14)" :
+                              hoveredIndicator === 'MACD' ? "MACD" :
+                              hoveredIndicator === 'BBAND' ? "볼린저 밴드" :
+                              hoveredIndicator === 'MA' ? "이동평균선" :
+                              hoveredIndicator === 'STOCH' ? "스토캐스틱" :
+                              "OBV"
+                            }</strong>: {
+                              hoveredIndicator === 'RSI' ? "상대강도지수. 주가의 상승/하락 강도를 나타내며 70 이상은 과매수, 30 이하는 과매도 상태로 판별합니다." :
+                              hoveredIndicator === 'MACD' ? "이동평균 수렴확산 지수. 단기/장기 이동평균선 간의 괴리를 분석하여 추세의 골든/데드크로스를 포착합니다." :
+                              hoveredIndicator === 'BBAND' ? "볼린저 밴드. 표준편차를 활용하여 주가가 상한선에 오면 저항/과열, 하한선에 오면 지지/침체로 해석합니다." :
+                              hoveredIndicator === 'MA' ? "이동평균선. 일정 기간의 주가 평균선 배열 상태(정배열/역배열)를 확인하여 장기적인 지지와 저항 흐름을 판별합니다." :
+                              hoveredIndicator === 'STOCH' ? "Stochastic. 최근 가격 범위 내에서 현재 주가의 상대적인 강도를 %K와 %D선으로 보여주며, 단기 과열(80 이상)/침체(20 이하)를 식별합니다." :
+                              "On Balance Volume. 거래량은 주가에 선행한다는 원리로, 주가 상승일 거래량 합계에서 하락일 거래량 합계를 차감하여 자금의 매집 여부를 포착합니다."
+                            }
+                          </>
+                        ) : (
+                          "💡 보조 지표 이름에 마우스를 올리면 상세 설명이 여기에 표시됩니다."
+                        )}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="ai-opinion-card">

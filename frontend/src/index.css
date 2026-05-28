@@ -82,6 +82,8 @@ body {
 /* In Korean stock market, Red is UP, Blue is DOWN */
 .trend-up { color: var(--accent-red); }
 .trend-down { color: var(--accent-blue); }
+.trend-flat { color: var(--text-muted); }
+
 
 /* Modal Styles */
 .modal-overlay {
@@ -349,4 +351,12 @@ body {
   from { transform: translateY(20px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
+
+/* Custom Tooltip Styles */
+.tooltip-indicator {
+  cursor: help;
+  border-bottom: 1px dashed var(--text-muted);
+}
+
+
 
