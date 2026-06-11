@@ -45,13 +45,13 @@ async def periodic_scraper():
     
     while True:
         try:
-            # 1. Scrape indices (every 60 seconds)
-            indices_data = scrape_indices_and_trends()
-            latest_market_data.update(indices_data)
-            
-            # 2. Scrape stock details (every 60 seconds)
+            # 1. Scrape stock details first (so reports can use live stock price/change data)
             stock_data = scrape_stock_details()
             latest_market_data["stock_details"] = stock_data
+            
+            # 2. Scrape indices and pass stock_data to dynamically generate AI reports
+            indices_data = scrape_indices_and_trends(stock_data)
+            latest_market_data.update(indices_data)
             
             # 3. Scrape news (every 60 seconds)
             news_data = scrape_news()
