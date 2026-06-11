@@ -189,7 +189,41 @@ def parse_stock(code):
         if blind:
             volume = blind.text.strip()
             
-    return {"price": price, "change": change, "trend": trend, "volume": volume, "pct_val": pct_val}
+    # Fetch pre-market / after-hours info from mobile basic API
+    overtime = None
+    try:
+        api_url = f"https://m.stock.naver.com/api/stock/{code}/basic"
+        api_res = requests.get(api_url, headers=HEADERS).json()
+        over_info = api_res.get("overMarketPriceInfo")
+        if over_info and over_info.get("overPrice"):
+            over_price = over_info.get("overPrice")
+            over_diff = over_info.get("compareToPreviousClosePrice", "0")
+            over_ratio = over_info.get("fluctuationsRatio", "0.0")
+            over_status = over_info.get("overMarketStatus", "CLOSE")
+            session_type = over_info.get("tradingSessionType", "")
+            
+            trend_name = over_info.get("compareToPreviousPrice", {}).get("name", "UNCHANGED")
+            over_trend = "up" if trend_name == "RISING" else ("down" if trend_name == "FALLING" else "flat")
+            
+            try:
+                val_float = float(over_ratio)
+                over_sign = "+" if val_float > 0 else ("-" if val_float < 0 else "")
+            except ValueError:
+                over_sign = ""
+                
+            clean_ratio = over_ratio.replace("+", "").replace("-", "").strip()
+            
+            overtime = {
+                "price": over_price,
+                "change": f"{over_diff} ({over_sign}{clean_ratio}%)",
+                "trend": over_trend,
+                "status": over_status,
+                "session_type": session_type
+            }
+    except Exception as e:
+        logger.error(f"Error fetching overtime info for {code}: {e}")
+            
+    return {"price": price, "change": change, "trend": trend, "volume": volume, "pct_val": pct_val, "overtime": overtime}
 
 def scrape_stock_details():
     """Scrapes all specified stocks concurrently in a thread pool."""

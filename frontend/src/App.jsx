@@ -421,7 +421,8 @@ function App() {
               change: detail.change,
               trend: detail.trend,
               volume: detail.volume,
-              investor_trend: detail.investor_trend
+              investor_trend: detail.investor_trend,
+              overtime: detail.overtime
             };
           }
           return prev;
@@ -448,7 +449,8 @@ function App() {
               change: detail.change,
               trend: detail.trend,
               volume: detail.volume,
-              investor_trend: detail.investor_trend
+              investor_trend: detail.investor_trend,
+              overtime: detail.overtime
             };
           }
           return prev;
@@ -822,6 +824,11 @@ function App() {
                               <span className={`trend-${s.trend}`} style={{ fontSize: '0.75rem', marginLeft: '0.4rem', fontWeight: '500', display: 'block' }}>
                                 {s.trend === 'up' ? '▲' : (s.trend === 'down' ? '▼' : '')} {s.change}
                               </span>
+                              {s.overtime && (
+                                <span style={{ fontSize: '0.7rem', color: '#f97316', display: 'block', marginTop: '0.15rem', fontWeight: '500' }}>
+                                  {s.overtime.session_type === 'AFTER_MARKET' ? '시간외' : '장전외'}: {s.overtime.price}
+                                </span>
+                              )}
                             </div>
                           </li>
                         ))}
@@ -857,6 +864,11 @@ function App() {
                               <span className={`trend-${s.trend}`} style={{ fontSize: '0.75rem', marginLeft: '0.4rem', fontWeight: '500', display: 'block' }}>
                                 {s.trend === 'up' ? '▲' : (s.trend === 'down' ? '▼' : '')} {s.change}
                               </span>
+                              {s.overtime && (
+                                <span style={{ fontSize: '0.7rem', color: '#f97316', display: 'block', marginTop: '0.15rem', fontWeight: '500' }}>
+                                  {s.overtime.session_type === 'AFTER_MARKET' ? '시간외' : '장전외'}: {s.overtime.price}
+                                </span>
+                              )}
                             </div>
                           </li>
                         ))}
@@ -1047,6 +1059,16 @@ function App() {
                         {selectedStock.trend === 'up' ? '▲' : (selectedStock.trend === 'down' ? '▼' : '')} {selectedStock.change}
                       </span>
                     </div>
+                    {selectedStock.overtime && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', background: 'rgba(249, 115, 22, 0.08)', padding: '0.5rem 0.8rem', borderRadius: '6px', border: '1px solid rgba(249, 115, 22, 0.15)', marginTop: '0.6rem', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#f97316', fontWeight: '700' }}>
+                          {selectedStock.overtime.session_type === 'AFTER_MARKET' ? '🕒 시간외 단일가' : '🌅 장전 시간외'} {selectedStock.overtime.status === 'OPEN' ? '(진행중)' : '(종료)'}
+                        </span>
+                        <span className={`trend-${selectedStock.overtime.trend}`} style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>
+                          {selectedStock.overtime.price}원 ({selectedStock.overtime.trend === 'up' ? '▲' : (selectedStock.overtime.trend === 'down' ? '▼' : '')} {selectedStock.overtime.change})
+                        </span>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.5rem' }}>
                       <span>거래량: {selectedStock.volume}주</span>
                       <span>종목코드: {selectedStock.code}</span>
