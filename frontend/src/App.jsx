@@ -825,7 +825,7 @@ function App() {
                                 {s.trend === 'up' ? '▲' : (s.trend === 'down' ? '▼' : '')} {s.change}
                               </span>
                               {s.overtime && (
-                                <span style={{ fontSize: '0.7rem', color: '#f97316', display: 'block', marginTop: '0.15rem', fontWeight: '500' }}>
+                                <span style={{ fontSize: '0.7rem', color: s.overtime.trend === 'down' ? 'var(--accent-blue)' : '#f97316', display: 'block', marginTop: '0.15rem', fontWeight: '500' }}>
                                   {s.overtime.session_type === 'AFTER_MARKET' ? '시간외' : '장전외'}: {s.overtime.price}
                                 </span>
                               )}
@@ -865,7 +865,7 @@ function App() {
                                 {s.trend === 'up' ? '▲' : (s.trend === 'down' ? '▼' : '')} {s.change}
                               </span>
                               {s.overtime && (
-                                <span style={{ fontSize: '0.7rem', color: '#f97316', display: 'block', marginTop: '0.15rem', fontWeight: '500' }}>
+                                <span style={{ fontSize: '0.7rem', color: s.overtime.trend === 'down' ? 'var(--accent-blue)' : '#f97316', display: 'block', marginTop: '0.15rem', fontWeight: '500' }}>
                                   {s.overtime.session_type === 'AFTER_MARKET' ? '시간외' : '장전외'}: {s.overtime.price}
                                 </span>
                               )}
@@ -1060,8 +1060,17 @@ function App() {
                       </span>
                     </div>
                     {selectedStock.overtime && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', background: 'rgba(249, 115, 22, 0.08)', padding: '0.5rem 0.8rem', borderRadius: '6px', border: '1px solid rgba(249, 115, 22, 0.15)', marginTop: '0.6rem', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.75rem', color: '#f97316', fontWeight: '700' }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        background: selectedStock.overtime.trend === 'down' ? 'rgba(59, 130, 246, 0.08)' : 'rgba(249, 115, 22, 0.08)', 
+                        padding: '0.5rem 0.8rem', 
+                        borderRadius: '6px', 
+                        border: selectedStock.overtime.trend === 'down' ? '1px solid rgba(59, 130, 246, 0.2)' : '1px solid rgba(249, 115, 22, 0.15)', 
+                        marginTop: '0.6rem', 
+                        alignItems: 'center' 
+                      }}>
+                        <span style={{ fontSize: '0.75rem', color: selectedStock.overtime.trend === 'down' ? 'var(--accent-blue)' : '#f97316', fontWeight: '700' }}>
                           {selectedStock.overtime.session_type === 'AFTER_MARKET' ? '🕒 시간외 단일가' : '🌅 장전 시간외'} {selectedStock.overtime.status === 'OPEN' ? '(진행중)' : '(종료)'}
                         </span>
                         <span className={`trend-${selectedStock.overtime.trend}`} style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>
