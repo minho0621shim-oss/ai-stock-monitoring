@@ -212,10 +212,11 @@ def parse_stock(code):
                 over_sign = ""
                 
             clean_ratio = over_ratio.replace("+", "").replace("-", "").strip()
+            clean_diff = over_diff.replace("+", "").replace("-", "").strip()
             
             overtime = {
                 "price": over_price,
-                "change": f"{over_diff} ({over_sign}{clean_ratio}%)",
+                "change": f"{clean_diff} ({over_sign}{clean_ratio}%)",
                 "trend": over_trend,
                 "status": over_status,
                 "session_type": session_type

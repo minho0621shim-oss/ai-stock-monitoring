@@ -826,7 +826,7 @@ function App() {
                               </span>
                               {s.overtime && (
                                 <span style={{ fontSize: '0.7rem', color: s.overtime.trend === 'down' ? 'var(--accent-blue)' : '#f97316', display: 'block', marginTop: '0.15rem', fontWeight: '500' }}>
-                                  {s.overtime.session_type === 'AFTER_MARKET' ? '시간외' : '장전외'}: {s.overtime.price}
+                                  {s.overtime.session_type === 'AFTER_MARKET' ? '시간외' : '장전외'}: {s.overtime.price} ({s.overtime.trend === 'up' ? '▲' : (s.overtime.trend === 'down' ? '▼' : '')} {s.overtime.change})
                                 </span>
                               )}
                             </div>
@@ -866,7 +866,7 @@ function App() {
                               </span>
                               {s.overtime && (
                                 <span style={{ fontSize: '0.7rem', color: s.overtime.trend === 'down' ? 'var(--accent-blue)' : '#f97316', display: 'block', marginTop: '0.15rem', fontWeight: '500' }}>
-                                  {s.overtime.session_type === 'AFTER_MARKET' ? '시간외' : '장전외'}: {s.overtime.price}
+                                  {s.overtime.session_type === 'AFTER_MARKET' ? '시간외' : '장전외'}: {s.overtime.price} ({s.overtime.trend === 'up' ? '▲' : (s.overtime.trend === 'down' ? '▼' : '')} {s.overtime.change})
                                 </span>
                               )}
                             </div>
