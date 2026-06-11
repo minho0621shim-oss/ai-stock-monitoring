@@ -598,7 +598,29 @@ function App() {
           {"name": "세명전기", "code": "017510", "price": "6,500", "change": "50 (-0.76%)", "trend": "down", "volume": "25,100", "top_surged": false}
         ]
       }
-    }
+    },
+    "reports": [
+      {
+        "title": "글로벌 AI 반도체 밸류체인 비교 리포트",
+        "summary": "엔비디아(NVIDIA)를 중심으로 한 글로벌 AI 반도체 생태계 점검. HBM(고대역폭메모리) 시장에서 SK하이닉스의 독점적 지위와 삼성전자의 맹추격, 그리고 파운드리 TSMC와의 협업 구조가 핵심. 온디바이스 AI 칩(NPU) 시장 확대에 따른 팹리스 및 디자인하우스 수혜 예상.",
+        "related_stocks": ["SK하이닉스", "삼성전자", "한미반도체"]
+      },
+      {
+        "title": "중소형 강소기업 수혜주 리포트",
+        "summary": "AI 인프라 투자 확대에 따른 전력기기(HD현대일렉트릭, LS일렉트릭), 냉각시스템(데이터센터 쿨링), 유리기판 관련 소부장(소재/부품/장비) 강소기업들의 실적 점프 기대. 특히 전력 부족 현상 수혜주들이 단기 급등 후 구조적 성장 국면에 진입.",
+        "related_stocks": ["HD현대일렉트릭", "LS일렉트릭", "제룡전기"]
+      },
+      {
+        "title": "중소형 장비/소재주(밸류체인 하위 레이어)의 숨겨진 수혜주 발굴",
+        "summary": "AI 반도체 고도화(HBM, 온디바이스 AI)에 따라 필수적인 첨단 패키징(Advanced Packaging), EUV 공정, 신소재(High-K 등) 관련 중소형 장비 및 소재 기업들의 실적 레버리지 효과가 부각. 대형주 대비 밸류에이션 매력이 높고 특정 공정에서 독보적 기술력을 보유한 강소기업 집중 조명.",
+        "related_stocks": ["이오테크닉스", "HPSP", "솔브레인", "동진쎄미켐", "대주전자재료"]
+      },
+      {
+        "title": "전장 및 온디바이스 AI 확산: MLCC 수요 회복 및 수혜주 점검",
+        "summary": "온디바이스 AI 탑재 IT 기기 확대 및 자율주행/전장화 가속에 따라 고용량·고신뢰성 MLCC(적층세라믹콘덴서) 수요가 급증하고 있습니다. 재고 조정이 마무리되며 본격적인 턴어라운드가 기대되는 주요 MLCC 관련주를 점검합니다.",
+        "related_stocks": ["삼성전기", "삼화콘덴서", "코스모신소재", "대주전자재료", "아모텍"]
+      }
+    ]
   };
 
   useEffect(() => {
@@ -845,14 +867,34 @@ function App() {
               </div>
             </div>
           </div>
+
+
         </section>
 
         <aside className="sidebar" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div className="card">
-            <h2 className="card-title">AI 시장 분석</h2>
-            <p style={{ lineHeight: '1.6', fontSize: '0.95rem' }}>
-              <strong style={{color: 'var(--text-main)'}}>시장 전망:</strong> {data.insight}
-            </p>
+            <h2 className="card-title" style={{ marginBottom: '1.2rem' }}>📊 AI 핵심 리포트 (비교 요약)</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+              {(data.reports || []).map((report, idx) => (
+                <div key={idx} style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '1.2rem', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                  <h3 style={{ color: 'var(--accent-blue)', fontSize: '1.05rem', borderBottom: '1px dashed rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
+                    {report.title}
+                  </h3>
+                  <p style={{ color: 'var(--text-main)', fontSize: '0.9rem', lineHeight: '1.6' }}>
+                    {report.summary}
+                  </p>
+                  {report.related_stocks && report.related_stocks.length > 0 && (
+                    <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {report.related_stocks.map((stock, i) => (
+                        <span key={i} style={{ background: 'rgba(59, 130, 246, 0.2)', color: 'var(--accent-blue)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: '500' }}>
+                          # {stock}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="card">
